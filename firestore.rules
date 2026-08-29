@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// H-STREET CATCH 공유 랭킹 규칙
+// Firebase 콘솔 > Firestore Database > 규칙 탭에 붙여넣고 [게시]
+//
+// 설계 의도:
+//  - 행사장 태블릿은 로그인 없이 점수를 올려야 하므로 create를 열어둔다.
+//  - 대신 필드 구성과 값 범위를 강제해서 아무 데이터나 못 넣게 막는다.
+//  - update/delete는 전면 차단한다. 랭킹 초기화는 콘솔에서만 한다.
+//    (delete를 열면 URL을 아는 누구나 랭킹보드를 통째로 지울 수 있다.)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /rankings/{docId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasOnly(['name', 'score', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 12
+        && request.resource.data.score is int
+        && request.resource.data.score >= -500
+        && request.resource.data.score <= 1000
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+
+    // 그 외 모든 경로 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

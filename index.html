@@ -427,9 +427,9 @@
     <div class="side">
       <div class="card">
         <h3>Today's Ranking</h3>
-        <p class="sub">이 브라우저에 저장된 로컬 기록입니다 (데모용)</p>
+        <p class="sub" id="rankNote">랭킹을 불러오는 중…</p>
         <ol class="rank-list" id="rankList"></ol>
-        <div class="reset-row"><button class="btn ghost small" id="btnClearRank">기록 초기화</button></div>
+        <div class="reset-row" id="rankResetRow"><button class="btn ghost small" id="btnClearRank">기록 초기화</button></div>
       </div>
 
       <div class="card">
@@ -444,7 +444,7 @@
             <li><b>이 데모</b>는 순수 HTML·CSS·JS로 동작합니다. 별도 반응속도 측정 장비 없이 태블릿 브라우저를 켜두는 것만으로 실행돼요.</li>
             <li><b>타겟(H-STREET LS 제품컷)과 디코이(축구공, 용인FC 엠블럼, 요니, 이니) 전부 실제 브랜드 자산</b>으로 구성했어요. 타겟 칩과 디코이 칩은 배경·테두리가 완전히 동일해서, 사진을 실제로 알아봐야 맞출 수 있어요.</li>
             <li><b>실제 배포 시</b> 브라우저를 <b>키오스크 모드</b>(주소창·제스처 차단)로 고정하면 됩니다.</li>
-            <li><b>Lane A/B 랭킹 동기화</b>는 지금은 기기별 로컬 저장이라 태블릿 2대가 따로 기록돼요. 두 대가 같은 랭킹보드를 보려면 작은 서버나 Google Sheet/Firebase 같은 공유 저장소가 필요합니다.</li>
+            <li><b>Lane A/B 랭킹은 Firebase Firestore로 동기화</b>됩니다. 태블릿 2대가 같은 랭킹보드를 실시간으로 공유해요. 네트워크가 끊기면 자동으로 기기별 로컬 기록으로 전환되고, 랭킹 카드 문구에 현재 상태가 표시됩니다.</li>
           </ol>
         </div>
       </div>
@@ -738,23 +738,51 @@
   document.getElementById('btnStart').addEventListener('click', startGame);
   document.getElementById('btnRetry').addEventListener('click', startGame);
 
-  // ---- ranking (localStorage, per-viewer demo only) ----
-  const RANK_KEY = 'puma-reaction10-ranking-v1';
+  // ---- ranking (Firestore 공유 랭킹 · 실패 시 localStorage 폴백) ----
+  const RANK_KEY   = 'puma-reaction10-ranking-v1';
+  const RANK_LIMIT = 10;
+  const NAME_MAX   = 12;
 
-  function loadRanking(){
+  // Firebase 콘솔 > 프로젝트 설정 > 내 앱 > SDK 설정 및 구성에서 복사한 값
+  const firebaseConfig = {
+    apiKey:            "AIzaSyDJLLn6SaSwlNaypaeqDUKIJexCnyAM9iA",
+    authDomain:        "jiyun-11a89.firebaseapp.com",
+    projectId:         "jiyun-11a89",
+    storageBucket:     "jiyun-11a89.firebasestorage.app",
+    messagingSenderId: "427341362569",
+    appId:             "1:427341362569:web:361f26758525c0be1bdd58"
+  };
+
+  let remoteAdd   = null;  // Firestore 등록 함수. null이면 로컬 모드
+  let rankCache   = [];    // 화면에 그릴 목록
+  let lastAddedId = null;
+
+  const noteEl     = document.getElementById('rankNote');
+  const resetRowEl = document.getElementById('rankResetRow');
+
+  function setNote(text){ if(noteEl) noteEl.textContent = text; }
+
+  function loadLocal(){
     try{
       const raw = localStorage.getItem(RANK_KEY);
       return raw ? JSON.parse(raw) : [];
     }catch(e){ return []; }
   }
-  function saveRanking(list){
+  function saveLocal(list){
     try{ localStorage.setItem(RANK_KEY, JSON.stringify(list)); }catch(e){}
   }
 
-  let lastAddedId = null;
+  // 공유 랭킹을 못 쓸 때 기기별 기록으로 되돌린다. 행사장 네트워크가 끊겨도 게임은 계속 돌아가야 한다.
+  function useLocalMode(reason){
+    remoteAdd = null;
+    rankCache = loadLocal();
+    setNote(reason);
+    if(resetRowEl) resetRowEl.style.display = '';
+    renderRanking();
+  }
 
   function renderRanking(){
-    const list = loadRanking().sort((a,b)=>b.score-a.score).slice(0,10);
+    const list = rankCache.slice().sort((a,b)=>b.score-a.score).slice(0,RANK_LIMIT);
     const ol = document.getElementById('rankList');
     ol.innerHTML = '';
     if(list.length === 0){
@@ -776,24 +804,81 @@
     return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  document.getElementById('btnRegister').addEventListener('click', () => {
-    const input = document.getElementById('nameInput');
-    const name = (input.value || '').trim() || '용인FC 팬';
-    const score = Number(document.getElementById('panelResult').dataset.score || 0);
-    const list = loadRanking();
-    const id = Date.now() + '-' + Math.random().toString(36).slice(2,7);
-    list.push({ id, name, score });
-    saveRanking(list);
-    lastAddedId = id;
+  async function initRanking(){
+    if(/^__/.test(firebaseConfig.apiKey)){
+      useLocalMode('이 브라우저에 저장된 로컬 기록입니다 (Firebase 미설정)');
+      return;
+    }
+    rankCache = loadLocal();
     renderRanking();
-    input.value = '';
+    setNote('공유 랭킹 서버에 연결 중…');
+    try{
+      const [appMod, fsMod] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js')
+      ]);
+      const db  = fsMod.getFirestore(appMod.initializeApp(firebaseConfig));
+      const col = fsMod.collection(db, 'rankings');
+
+      remoteAdd = (name, score) => fsMod.addDoc(col, {
+        name, score, createdAt: fsMod.serverTimestamp()
+      });
+
+      fsMod.onSnapshot(
+        fsMod.query(col, fsMod.orderBy('score','desc'), fsMod.limit(RANK_LIMIT)),
+        snap => {
+          rankCache = snap.docs.map(d => ({ id:d.id, name:d.data().name, score:d.data().score }));
+          setNote('태블릿 공유 랭킹 · 실시간 동기화 중');
+          if(resetRowEl) resetRowEl.style.display = 'none';
+          renderRanking();
+        },
+        err => {
+          console.warn('[ranking] onSnapshot 실패', err);
+          useLocalMode('이 브라우저에 저장된 로컬 기록입니다 (서버 연결 실패)');
+        }
+      );
+    }catch(e){
+      console.warn('[ranking] Firebase 초기화 실패', e);
+      useLocalMode('이 브라우저에 저장된 로컬 기록입니다 (서버 연결 실패)');
+    }
+  }
+
+  const btnRegister = document.getElementById('btnRegister');
+  btnRegister.addEventListener('click', async () => {
+    const input = document.getElementById('nameInput');
+    const name  = (input.value || '').trim().slice(0, NAME_MAX) || '용인FC 팬';
+    const score = Number(document.getElementById('panelResult').dataset.score || 0);
+
+    btnRegister.disabled = true;  // 태블릿 연타로 같은 기록이 두 번 올라가는 것 방지
+    try{
+      if(remoteAdd){
+        const ref = await remoteAdd(name, score);
+        lastAddedId = ref.id;     // 목록 갱신은 onSnapshot이 처리한다
+      }else{
+        const id = Date.now() + '-' + Math.random().toString(36).slice(2,7);
+        rankCache.push({ id, name, score });
+        saveLocal(rankCache);
+        lastAddedId = id;
+        renderRanking();
+      }
+      input.value = '';
+    }catch(e){
+      console.warn('[ranking] 등록 실패', e);
+      setNote('기록 등록에 실패했어요. 네트워크를 확인해 주세요.');
+    }finally{
+      btnRegister.disabled = false;
+    }
   });
 
   document.getElementById('btnClearRank').addEventListener('click', () => {
-    saveRanking([]);
+    if(remoteAdd) return;  // 공유 랭킹은 Firebase 콘솔에서만 초기화한다
+    saveLocal([]);
+    rankCache = [];
     lastAddedId = null;
     renderRanking();
   });
+
+  initRanking();
 
   // ---- grade legend ----
   const gradeListEl = document.getElementById('gradeList');
@@ -810,8 +895,6 @@
       '<span class="range">' + rangeText + '</span>';
     gradeListEl.appendChild(row);
   });
-
-  renderRanking();
 })();
 </script>
 </body>
