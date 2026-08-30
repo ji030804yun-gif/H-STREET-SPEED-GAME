@@ -69,9 +69,9 @@
   :focus-visible{ outline:3px solid var(--focus); outline-offset:2px; border-radius:6px; }
 
   .wrap{
-    max-width:1180px;
+    max-width:1340px;
     margin:0 auto;
-    padding:28px 20px 60px;
+    padding:28px 20px 40px;
   }
 
   /* ---------- header ---------- */
@@ -114,11 +114,22 @@
   }
   .hero strong{ color:var(--sky); font-weight:700; }
 
+  /* 세로가 좁은 태블릿에서는 제목·여백을 줄이고 그만큼을 경기판에 넘긴다.
+     경기판이 클수록 게임이 잘 보이고, 제목은 작아져도 읽는 데 문제가 없다. */
+  @media (max-height:860px){
+    .wrap{ padding:16px 20px 20px; }
+    .topbar{ margin-bottom:14px; }
+    .hero{ margin:0 0 16px; }
+    .hero h1{ font-size:clamp(26px,3.6vw,36px); margin:0 0 6px; }
+    .hero p{ font-size:14px; }
+  }
+
   /* ---------- layout ---------- */
   .layout{
     display:grid;
-    grid-template-columns:minmax(0,1.35fr) minmax(280px,.9fr);
-    gap:22px;
+    /* 경기판을 최대한 크게. 사이드는 랭킹·등급만 남았으므로 좁혀도 읽힌다. */
+    grid-template-columns:minmax(0,2fr) minmax(250px,.72fr);
+    gap:20px;
     align-items:start;
   }
   @media (max-width:860px){
@@ -166,12 +177,27 @@
 
   .field{
     position:relative;
-    height:min(58vh, 480px);
-    min-height:340px;
+    /* 경기판은 화면 밖으로 넘치면 안 된다. 안 보이는 자리에 타겟이 생기면
+       플레이어는 손도 못 댄 채 놓친 것이 되기 때문이다.
+       그래서 고정 높이 대신 "화면 높이 - 나머지 UI"로 잡는다.
+       빼는 값은 상단 헤더 + HUD + 하단 범례 + 여백의 실측치다. */
+    height:clamp(360px, calc(100vh - 360px), 660px);
+    height:clamp(360px, calc(100dvh - 360px), 660px);
+    /* 이어지는 @media (max-height:860px)에서 이 높이를 다시 잡는다.
+       미디어쿼리는 우선순위를 올려주지 않으므로 반드시 이 규칙 뒤에 와야 한다. */
     z-index:1;
     contain:layout paint;   /* 아이콘 생성/삭제가 바깥 레이아웃을 건드리지 않게 격리 */
     /* 평평한 검정으로 보이지 않게, 아주 옅은 클라레트 스폿라이트만 */
     background:radial-gradient(ellipse 70% 60% at 50% 42%, rgba(164,39,64,.20), transparent 70%);
+  }
+
+  /* 세로가 좁은 화면에서는 헤더를 줄인 만큼 경기판을 더 키운다.
+     위의 .field 규칙보다 반드시 뒤에 있어야 적용된다. */
+  @media (max-height:860px){
+    .field{
+      height:clamp(360px, calc(100vh - 295px), 660px);
+      height:clamp(360px, calc(100dvh - 295px), 660px);
+    }
   }
 
   /* ---- panels inside field: start / result ---- */
@@ -347,9 +373,6 @@
   .grade-row .range{ color:var(--text-dim); font-variant-numeric:tabular-nums; }
   .grade-dot{ width:9px; height:9px; border-radius:50%; }
 
-  .notes{ font-size:12.5px; color:var(--text-dim); line-height:1.75; }
-  .notes b{ color:var(--text); }
-  .notes ol{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; }
 
   .reset-row{ margin-top:14px; text-align:right; }
 </style>
@@ -437,17 +460,6 @@
         <div class="grade-list" id="gradeList"></div>
       </div>
 
-      <div class="card">
-        <h3>구현 노트</h3>
-        <div class="notes">
-          <ol>
-            <li><b>이 데모</b>는 순수 HTML·CSS·JS로 동작합니다. 별도 반응속도 측정 장비 없이 태블릿 브라우저를 켜두는 것만으로 실행돼요.</li>
-            <li><b>타겟(H-STREET LS 제품컷)과 디코이(축구공, 용인FC 엠블럼, 요니, 이니) 전부 실제 브랜드 자산</b>으로 구성했어요. 타겟 칩과 디코이 칩은 배경·테두리가 완전히 동일해서, 사진을 실제로 알아봐야 맞출 수 있어요.</li>
-            <li><b>실제 배포 시</b> 브라우저를 <b>키오스크 모드</b>(주소창·제스처 차단)로 고정하면 됩니다.</li>
-            <li><b>Lane A/B 랭킹은 Firebase Firestore로 동기화</b>됩니다. 태블릿 2대가 같은 랭킹보드를 실시간으로 공유해요. 네트워크가 끊기면 자동으로 기기별 로컬 기록으로 전환되고, 랭킹 카드 문구에 현재 상태가 표시됩니다.</li>
-          </ol>
-        </div>
-      </div>
     </div>
 
   </div>
