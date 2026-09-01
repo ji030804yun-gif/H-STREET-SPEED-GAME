@@ -283,8 +283,8 @@
   /* ---- play field icons ---- */
   .icon-btn{
     position:absolute;
-    width:72px; height:72px;
-    border-radius:18px;
+    width:88px; height:88px;
+    border-radius:22px;
     display:flex; align-items:center; justify-content:center;
     /* 디코이도 충분히 보여야 게임이 성립한다. 타겟보다 어둡되 묻히지 않게. */
     background:#3d2029;
@@ -297,7 +297,7 @@
   /* 타겟도 디코이와 완전히 같은 칩이어야 한다.
      칩 모양이 다르면 사진을 안 보고 '밝은 것'만 눌러도 이겨버린다. */
   .icon-btn svg, .icon-btn span, .icon-btn img{ pointer-events:none; user-select:none; }
-  .icon-btn span.emoji{ font-size:28px; line-height:1; }
+  .icon-btn span.emoji{ font-size:34px; line-height:1; }
   .icon-btn.pop-hit{ animation:hitPop .28s ease forwards; }
   .icon-btn.pop-miss{ animation:missShake .28s ease forwards; }
 
@@ -474,24 +474,30 @@
   // 상품이 선착순이라, 각 등급의 "도달 인원"을 상품 수와 비슷하게 맞춰야 한다.
   // 넉넉하면 초반에 상품이 동나고, 빡빡하면 상품이 남는다.
   //
-  // 아래 값은 현재 게임 상수(15초 / 480ms 스폰 / 720ms 수명 / 타겟 38%)를
-  // 그대로 두고 40만 회 시뮬레이션해 얻은 점수 분포에서 역산했다.
+  // [2026-09 난이도 완화] 아이들도 할 수 있게 게임 상수를 바꿨다.
+  //   수명 720ms -> 1900ms / 스폰 480ms -> 600ms / 타겟 38% -> 60% / 아이콘 크기 확대
+  // 점수가 통째로 올라가므로 등급 컷도 같이 올렸다. 안 올리면 LEGEND 도달자가
+  // 3명에서 수십 명으로 폭증해 상품이 바로 동난다.
+  //
+  // 아래 값은 새 게임 상수로 8만 회 시뮬레이션해 얻은 점수 분포에서 역산했다.
   // 기준: 참가자 500명.
   //
-  //   LEGEND 160점 — 도달률 0.66% → 약 3.3명   (상품 3명)
-  //   PRO    110점 — 도달률 10.4% → 약 52명    (상품 50명)
+  //   LEGEND 200점 — 도달률 0.42% -> 약 2명    (상품 3명)
+  //   PRO    150점 — 도달률 11.3% -> 약 56명   (상품 50명)
   //   ROOKIE   0점 — 전원. 점수가 0이어도 등급이 비지 않게 하려고 0으로 둔다.
   //
   // 참가자 수가 달라지면 이 표로 다시 잡으면 된다(도달률 기준):
-  //   180점 0.12% / 170점 0.30% / 160점 0.66% / 150점 1.35% / 140점 2.54%
-  //   130점 4.36% / 120점 6.99% / 110점 10.4% / 100점 14.6% /  90점 19.6%
-  //    80점 25.3% /  70점 31.9% /  60점 39.3% /  50점 47.4% /  40점 56.2%
+  //   210점 0.14% / 200점 0.42% / 190점 1.17% / 180점 2.43% / 170점 4.72%
+  //   160점 7.27% / 150점 11.3% / 140점 14.5% / 130점 19.6% / 120점 22.9%
+  //   110점 29.6% / 100점 32.9% /  90점 41.3% /  80점 44.9% /  70점 54.8%
+  //    60점 58.5% /  50점 68.1% /  40점 71.3%
   //
-  // 리허설에서 실제 분포가 다르면 아래 min 값만 고치면 된다.
+  // 시뮬레이션은 어디까지나 추정이다. 리허설에서 실제 분포를 보고
+  // 아래 min 값만 고치면 된다.
   const GRADES = [
     { key:'rookie',  name:'ROOKIE',      min:0,   color:'var(--sky-soft)' },
-    { key:'pro',     name:'PRO',         min:110, color:'#ffffff' },
-    { key:'legend',  name:'LEGEND',      min:160, color:'legend' },
+    { key:'pro',     name:'PRO',         min:150, color:'#ffffff' },
+    { key:'legend',  name:'LEGEND',      min:200, color:'legend' },
   ];
 
   function gradeFor(score){
@@ -534,12 +540,12 @@
 
   // 2) 아이콘 노드를 미리 하나씩 만들어두고, 생성할 때는 cloneNode만 한다.
   //    innerHTML 파싱이 매번 사라진다.
-  const PROTO_TARGET = mkImg(URL_SHOE, 'H-STREET LS', 'width:66px;height:auto;');
+  const PROTO_TARGET = mkImg(URL_SHOE, 'H-STREET LS', 'width:80px;height:auto;');
   const PROTO_DECOYS = [
     (function(){ const s = document.createElement('span'); s.className = 'emoji'; s.textContent = '\u26BD'; return s; })(),
-    mkImg(URL_YFC,  'YONGIN FC', 'width:40px;height:40px;object-fit:contain;border-radius:10px;'),
-    mkImg(URL_YONI, '\uC694\uB2C8', 'width:46px;height:46px;object-fit:cover;border-radius:12px;'),
-    mkImg(URL_INI,  '\uC774\uB2C8', 'width:46px;height:46px;object-fit:cover;border-radius:12px;'),
+    mkImg(URL_YFC,  'YONGIN FC', 'width:50px;height:50px;object-fit:contain;border-radius:12px;'),
+    mkImg(URL_YONI, '\uC694\uB2C8', 'width:56px;height:56px;object-fit:cover;border-radius:14px;'),
+    mkImg(URL_INI,  '\uC774\uB2C8', 'width:56px;height:56px;object-fit:cover;border-radius:14px;'),
   ];
 
   // 3) 시작 화면이 떠 있는 동안 미리 디코드시켜서, 첫 아이콘에서 멈칫하는 걸 없앤다.
@@ -571,6 +577,15 @@
   let playing = false;
   let startTs = 0;
   const DURATION = 15.0;
+  // ===== 난이도 상수 (아이들도 할 수 있게 완화) =====
+  // ICON_LIFE  : 아이콘이 화면에 머무는 시간(ms). 클수록 쉽다.
+  // SPAWN_GAP  : 아이콘이 새로 뜨는 간격(ms). 클수록 덜 정신없다.
+  // TARGET_RATE: 신발(타겟)이 나올 확률. 클수록 헷갈릴 일이 줄어 쉽다.
+  // 예전 값(어른 기준): 720 / 480 / 0.38
+  // 더 쉽게: ICON_LIFE를 올린다. 더 어렵게: ICON_LIFE를 내린다. 이 값 하나가 체감의 90%다.
+  const ICON_LIFE   = 1900;
+  const SPAWN_GAP   = 600;
+  const TARGET_RATE = 0.60;
   let hits = 0, misses = 0, liveScore = 0;
   let spawnTimer = null, rafId = null, lastTimeTxt = '';
   let activeIcons = [];
@@ -634,11 +649,11 @@
     for(let i = 0; i < POOL.length; i++){ if(!POOL[i]._live){ el = POOL[i]; break; } }
     if(!el) return;
 
-    const isTarget = Math.random() < 0.38;
+    const isTarget = Math.random() < TARGET_RATE;
     if(isTarget){
       el._img.src = URL_SHOE;
       el._img.alt = 'H-STREET LS';   // 풀을 재사용하므로 alt도 매번 갱신해야 한다
-      el._img.setAttribute('style', 'width:66px;height:auto;');
+      el._img.setAttribute('style', 'width:80px;height:auto;');
       el._img.style.display = ''; el._emo.style.display = 'none';
       el.classList.add('target');
     } else {
@@ -651,15 +666,15 @@
         const src = kind === 1 ? URL_YFC : (kind === 2 ? URL_YONI : URL_INI);
         const alt = kind === 1 ? 'YONGIN FC' : (kind === 2 ? '\uC694\uB2C8' : '\uC774\uB2C8');
         const css = kind === 1
-          ? 'width:40px;height:40px;object-fit:contain;border-radius:10px;'
-          : 'width:46px;height:46px;object-fit:cover;border-radius:12px;';
+          ? 'width:50px;height:50px;object-fit:contain;border-radius:12px;'
+          : 'width:56px;height:56px;object-fit:cover;border-radius:14px;';
         el._img.src = src; el._img.alt = alt;
         el._img.setAttribute('style', css);
         el._img.style.display = ''; el._emo.style.display = 'none';
       }
     }
 
-    const pad = 70;
+    const pad = 88;
     const maxX = Math.max(fieldW - pad, pad);
     const maxY = Math.max(fieldH - pad, pad);
     const x = pad/2 + Math.random() * (maxX - pad/2);
@@ -679,7 +694,7 @@
       }catch(e){}
     }
 
-    el._life = setTimeout(() => { if(el._live) releaseIcon(el); }, 720);
+    el._life = setTimeout(() => { if(el._live) releaseIcon(el); }, ICON_LIFE);
     activeIcons.push(el);
   }
 
@@ -727,7 +742,7 @@
     clearIcons();
     startTs = performance.now();
     measureField();
-    spawnTimer = setInterval(spawnIcon, 480);
+    spawnTimer = setInterval(spawnIcon, SPAWN_GAP);
     spawnIcon();
     rafId = requestAnimationFrame(tick);
   }
