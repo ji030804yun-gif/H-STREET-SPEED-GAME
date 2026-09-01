@@ -474,30 +474,35 @@
   // 상품이 선착순이라, 각 등급의 "도달 인원"을 상품 수와 비슷하게 맞춰야 한다.
   // 넉넉하면 초반에 상품이 동나고, 빡빡하면 상품이 남는다.
   //
-  // [2026-09 난이도 완화] 아이들도 할 수 있게 게임 상수를 바꿨다.
-  //   수명 720ms -> 1900ms / 스폰 480ms -> 600ms / 타겟 38% -> 60% / 아이콘 크기 확대
-  // 점수가 통째로 올라가므로 등급 컷도 같이 올렸다. 안 올리면 LEGEND 도달자가
-  // 3명에서 수십 명으로 폭증해 상품이 바로 동난다.
+  // ===== 등급 컷은 고정값이다. 건드리지 말 것 =====
+  //   ROOKIE  0 ~ 49
+  //   PRO    50 ~ 99
+  //   LEGEND 100 이상
+  // 운영 측에서 확정한 값이라 점수 분포에 맞춰 역산하지 않는다.
+  // 등급별 인원을 조절해야 하면 등급 컷이 아니라 '난이도 상수'를 바꾼다.
+  // (아래 TARGET_LIFE / SPAWN_GAP / TARGET_RATE / MAX_ON_SCREEN)
   //
-  // 아래 값은 새 게임 상수로 8만 회 시뮬레이션해 얻은 점수 분포에서 역산했다.
-  // 기준: 참가자 500명.
+  // [2026-09 난이도 완화] 아이들도 할 수 있게 잡았다.
+  //   신발 수명 720ms -> 1800ms / 방해물 850ms / 등장 간격 480 -> 700ms
+  //   타겟 비율 38% -> 62% / 동시 표시 5개 -> 3개 / 아이콘 크기 확대
+  //   + 사라지기 전 서서히 흐려지는 예고 추가
   //
-  //   LEGEND 200점 — 도달률 0.42% -> 약 2명    (상품 3명)
-  //   PRO    150점 — 도달률 11.3% -> 약 56명   (상품 50명)
-  //   ROOKIE   0점 — 전원. 점수가 0이어도 등급이 비지 않게 하려고 0으로 둔다.
+  // "후반에 아이콘이 빨리 사라진다"의 원인은 수명이 아니라 동시 표시 개수였다.
+  // 3.2개가 떠 있으면 0.6초마다 하나씩 사라져서 훨씬 빨라 보인다. 2개로 줄였다.
+  // 수명을 2600ms까지 늘려도 봤는데, 그러면 누구나 다 잡아서 실력 차이가
+  // 사라지고 점수가 운(신발이 몇 개 나왔나)으로만 결정됐다. 1800ms가 균형점.
   //
-  // 참가자 수가 달라지면 이 표로 다시 잡으면 된다(도달률 기준):
-  //   210점 0.14% / 200점 0.42% / 190점 1.17% / 180점 2.43% / 170점 4.72%
-  //   160점 7.27% / 150점 11.3% / 140점 14.5% / 130점 19.6% / 120점 22.9%
-  //   110점 29.6% / 100점 32.9% /  90점 41.3% /  80점 44.9% /  70점 54.8%
-  //    60점 58.5% /  50점 68.1% /  40점 71.3%
+  // 현재 난이도에서의 예상 분포 (8만 회 시뮬레이션, 참가자 500명 기준):
+  //    50점 이상(PRO 이상) 73.9% -> 약 369명
+  //   100점 이상(LEGEND)   35.6% -> 약 178명
+  //   평균 77점 / 0점 7%
   //
-  // 시뮬레이션은 어디까지나 추정이다. 리허설에서 실제 분포를 보고
-  // 아래 min 값만 고치면 된다.
+  // LEGEND를 줄이려면 신발이 덜 나오게 한다: TARGET_RATE를 내리거나
+  // SPAWN_GAP을 올린다. 리허설에서 실제 분포를 보고 맞추면 된다.
   const GRADES = [
     { key:'rookie',  name:'ROOKIE',      min:0,   color:'var(--sky-soft)' },
-    { key:'pro',     name:'PRO',         min:150, color:'#ffffff' },
-    { key:'legend',  name:'LEGEND',      min:200, color:'legend' },
+    { key:'pro',     name:'PRO',         min:50,  color:'#ffffff' },
+    { key:'legend',  name:'LEGEND',      min:100, color:'legend' },
   ];
 
   function gradeFor(score){
@@ -578,14 +583,21 @@
   let startTs = 0;
   const DURATION = 15.0;
   // ===== 난이도 상수 (아이들도 할 수 있게 완화) =====
-  // ICON_LIFE  : 아이콘이 화면에 머무는 시간(ms). 클수록 쉽다.
-  // SPAWN_GAP  : 아이콘이 새로 뜨는 간격(ms). 클수록 덜 정신없다.
-  // TARGET_RATE: 신발(타겟)이 나올 확률. 클수록 헷갈릴 일이 줄어 쉽다.
-  // 예전 값(어른 기준): 720 / 480 / 0.38
-  // 더 쉽게: ICON_LIFE를 올린다. 더 어렵게: ICON_LIFE를 내린다. 이 값 하나가 체감의 90%다.
-  const ICON_LIFE   = 1900;
-  const SPAWN_GAP   = 600;
-  const TARGET_RATE = 0.60;
+  // "후반에 아이콘이 빨리 사라진다"는 체감의 진짜 원인은 수명이 아니라
+  // '화면에 동시에 떠 있는 개수'였다. 개수가 많으면 각각 오래 살아도
+  // 0.6초마다 뭔가 하나씩 사라져서 훨씬 빨라 보인다.
+  // 그래서 (1) 신발은 오래, 방해물은 짧게 (2) 등장 간격을 늘려 동시 개수를 줄이고
+  // (3) 사라지기 전에 서서히 흐려지게 해서 '갑자기 없어지는' 느낌을 없앴다.
+  //
+  // 더 쉽게 하려면 TARGET_LIFE를 올린다.
+  // 화면이 정신없으면 SPAWN_GAP을 올리거나 MAX_ON_SCREEN을 줄인다.
+  // 예전 값(어른 기준): 수명 720 / 간격 480 / 타겟 38% / 동시 5개
+  const TARGET_LIFE = 1800;   // 신발(정답)이 화면에 머무는 시간(ms)
+  const DECOY_LIFE  = 850;   // 방해물이 머무는 시간(ms). 짧게 둬야 화면이 안 붐빈다.
+  const SPAWN_GAP   = 700;    // 새 아이콘이 뜨는 간격(ms). 클수록 덜 정신없다.
+  const TARGET_RATE = 0.62;   // 신발이 나올 확률
+  const MAX_ON_SCREEN = 3;    // 동시에 화면에 뜰 수 있는 최대 개수
+  const FADE_WARN   = 600;    // 사라지기 몇 ms 전부터 서서히 흐려질지
   let hits = 0, misses = 0, liveScore = 0;
   let spawnTimer = null, rafId = null, lastTimeTxt = '';
   let activeIcons = [];
@@ -593,6 +605,9 @@
   function clearIcons(){
     POOL.forEach(el => {
       clearTimeout(el._life);
+      clearTimeout(el._cool);
+      el._cooling = false;
+      if(el._fade){ try{ el._fade.cancel(); }catch(e){} el._fade = null; }
       el._live = false;
       el.style.display = 'none';
       el.classList.remove('target', 'pop-hit', 'pop-miss');
@@ -613,9 +628,10 @@
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // --- 아이콘 풀 ---
-  // 동시에 최대 5개까지만 뜨므로 6칸이면 충분하다.
+  // 동시에 최대 5개까지 뜬다. 여기에 더해, 탭한 직후의 칸은 사라지는
+  // 애니메이션이 끝날 때까지 잠긴다(아래 _cooling 참고). 그 몫까지 감안해 10칸.
   const POOL = [];
-  for(let i = 0; i < 6; i++){
+  for(let i = 0; i < 10; i++){
     const el = document.createElement('div');
     el.className = 'icon-btn';
     el.style.display = 'none';
@@ -624,11 +640,21 @@
     emo.style.display = 'none';
     el.appendChild(img);
     el.appendChild(emo);
-    el._img = img; el._emo = emo; el._live = false;
+    el._img = img; el._emo = emo; el._live = false; el._cooling = false;
     el.addEventListener('pointerdown', function(){
       if(!el._live) return;
       el._live = false;
+      // [버그 수정] 탭하면 사라지는 애니메이션이 300ms 정도 돈다.
+      // 그 사이에 이 칸을 재사용해 새 아이콘을 띄우면, 뒤늦게 도착한
+      // releaseIcon 타이머가 갓 뜬 아이콘을 지워버린다.
+      // 실제로 이것 때문에 게임 후반부(탭이 많아질수록) 아이콘이
+      // 1.9초가 아니라 0.3초 만에 사라졌다.
+      // → 애니메이션이 끝날 때까지 이 칸을 잠가둔다.
+      el._cooling = true;
+      if(el._fade){ try{ el._fade.cancel(); }catch(e){} el._fade = null; }
       clearTimeout(el._life);
+      const idx = activeIcons.indexOf(el);
+      if(idx >= 0) activeIcons.splice(idx, 1);
       handleTap(el, el._isTarget, el._x, el._y);
     });
     field.appendChild(el);
@@ -637,6 +663,7 @@
 
   function releaseIcon(el){
     el._live = false;
+    if(el._fade){ try{ el._fade.cancel(); }catch(e){} el._fade = null; }
     el.style.display = 'none';
     el.classList.remove('target', 'pop-hit', 'pop-miss');
     const i = activeIcons.indexOf(el);
@@ -644,9 +671,9 @@
   }
 
   function spawnIcon(){
-    if(activeIcons.length >= 5) return;
+    if(activeIcons.length >= MAX_ON_SCREEN) return;
     let el = null;
-    for(let i = 0; i < POOL.length; i++){ if(!POOL[i]._live){ el = POOL[i]; break; } }
+    for(let i = 0; i < POOL.length; i++){ if(!POOL[i]._live && !POOL[i]._cooling){ el = POOL[i]; break; } }
     if(!el) return;
 
     const isTarget = Math.random() < TARGET_RATE;
@@ -687,14 +714,22 @@
     el._live = true;
     // CSS 클래스로 애니메이션을 다시 트리거하려면 강제 리플로우가 필요하다.
     // Web Animations로 돌리면 합성 단계에서 처리돼 훨씬 싸다.
+    const life = isTarget ? TARGET_LIFE : DECOY_LIFE;
     if(!NO_MOTION && el.animate){
       try{
         el.animate([{ transform:'scale(.4)', opacity:0 }, { transform:'scale(1)', opacity:1 }],
                    { duration:160, easing:'ease-out' });
+        // 사라지기 직전에 서서히 흐려지며 작아진다.
+        // "갑자기 툭 없어진다"는 느낌을 없애고, 아이에게 곧 사라진다는 신호를 준다.
+        el._fade = el.animate([{ opacity:1, transform:'scale(1)' },
+                               { opacity:0.15, transform:'scale(.7)' }],
+                              { duration: Math.min(FADE_WARN, life - 200),
+                                delay: Math.max(0, life - FADE_WARN),
+                                easing:'ease-in', fill:'forwards' });
       }catch(e){}
     }
 
-    el._life = setTimeout(() => { if(el._live) releaseIcon(el); }, ICON_LIFE);
+    el._life = setTimeout(() => { if(el._live) releaseIcon(el); }, life);
     activeIcons.push(el);
   }
 
@@ -719,7 +754,7 @@
       floatFeedback('MISS', x, y, 'miss');
     }
     hudScore.textContent = liveScore;
-    setTimeout(()=>releaseIcon(el), 260);
+    el._cool = setTimeout(()=>{ el._cooling = false; releaseIcon(el); }, 300);
   }
 
   function tick(){
