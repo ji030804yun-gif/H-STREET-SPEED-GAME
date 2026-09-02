@@ -480,7 +480,7 @@
           <span class="legend-item"><span class="legend-swatch legend-shoe"></span>PUMA 로고(HIT)</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#3d2029;border:1px solid rgba(255,255,255,.2)"></span>디코이(MISS)</span>
         </div>
-        <span>SCORE = (HIT − MISS) × 10</span>
+        <span>SCORE = (HIT − MISS) × <span id="perHit">6</span></span>
       </div>
     </div>
 
@@ -530,13 +530,13 @@
   // 수명을 2600ms까지 늘려도 봤는데, 그러면 누구나 다 잡아서 실력 차이가
   // 사라지고 점수가 운(로고가 몇 개 나왔나)으로만 결정됐다. 1800ms가 균형점.
   //
-  // 현재 난이도에서의 예상 분포 (8만 회 시뮬레이션, 참가자 500명 기준):
-  //    50점 이상(PRO 이상) 73.9% -> 약 369명
-  //   100점 이상(LEGEND)   35.6% -> 약 178명
-  //   평균 77점 / 0점 7%
+  // 현재 설정에서의 예상 분포 (8만 회 시뮬레이션, 참가자 500명 기준):
+  //    50점 이상(PRO 이상)  44% -> 약 221명
+  //   100점 이상(LEGEND)  1.6% -> 약 8명    <- 신발 경품 10켤레에 맞춤
+  //   평균 46점 / 0점 7%
   //
-  // LEGEND를 줄이려면 로고가 덜 나오게 한다: TARGET_RATE를 내리거나
-  // SPAWN_GAP을 올린다. 리허설에서 실제 분포를 보고 맞추면 된다.
+  // 등급별 인원을 다시 맞춰야 하면 POINT_PER_HIT(아래 난이도 상수)를 바꾼다.
+  // 등급 컷(50 / 100)은 운영 확정값이므로 건드리지 않는다.
   const GRADES = [
     { key:'rookie',  name:'ROOKIE',      min:0,   color:'var(--sky-soft)' },
     { key:'pro',     name:'PRO',         min:50,  color:'#ffffff' },
@@ -636,6 +636,18 @@
   const TARGET_RATE = 0.62;   // PUMA 로고가 나올 확률
   const MAX_ON_SCREEN = 3;    // 동시에 화면에 뜰 수 있는 최대 개수
   const FADE_WARN   = 600;    // 사라지기 몇 ms 전부터 서서히 흐려질지
+
+  // PUMA 로고 1개당 점수. 등급 컷(50 / 100)이 고정이라, 등급별 인원은
+  // 이 배점으로 맞춘다. 게임 자체는 그대로 두고 점수 눈금만 바꾸는 것이라
+  // 난이도를 올려도 "아무것도 못 맞히는 사람"이 늘지 않는 것이 장점이다.
+  //   10점 -> 100점 도달 35.6%(500명 중 178명)
+  //    8점 -> 16.7%(83명)   7점 -> 6.8%(34명)
+  //    6점 -> 1.6%(8명)   <- 신발 경품 10켤레 기준으로 채택
+  const POINT_PER_HIT = 6;
+
+  // 하단 "SCORE = (HIT - MISS) x ?" 안내를 배점과 자동으로 맞춘다.
+  { const ph = document.getElementById('perHit');
+    if (ph) ph.textContent = POINT_PER_HIT; }
   let hits = 0, misses = 0, liveScore = 0;
   let spawnTimer = null, rafId = null, lastTimeTxt = '';
   let activeIcons = [];
@@ -783,11 +795,11 @@
 
   function handleTap(el, isTarget, x, y){
     if(isTarget){
-      hits++; liveScore = Math.max(0, (hits - misses) * 10);
+      hits++; liveScore = Math.max(0, (hits - misses) * POINT_PER_HIT);
       el.classList.add('pop-hit');
-      floatFeedback('+10', x, y, 'hit');
+      floatFeedback('+' + POINT_PER_HIT, x, y, 'hit');
     } else {
-      misses++; liveScore = Math.max(0, (hits - misses) * 10);
+      misses++; liveScore = Math.max(0, (hits - misses) * POINT_PER_HIT);
       el.classList.add('pop-miss');
       floatFeedback('MISS', x, y, 'miss');
     }
@@ -827,7 +839,7 @@
     clearIcons();
     hudTime.textContent = '0.0';
 
-    const finalScore = Math.max(0, (hits - misses) * 10);
+    const finalScore = Math.max(0, (hits - misses) * POINT_PER_HIT);
     const grade = gradeFor(finalScore);
 
     document.getElementById('resScore').textContent = finalScore;
